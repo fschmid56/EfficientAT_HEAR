@@ -60,13 +60,13 @@ To check whether a model is correctly wrapped in the interface for the HEAR chal
 module `mn40_as_ext_e1_l`:
 
 ```
-hear-validator hear_mn.mn40_as_ext_e1_l
+hear-validator hear_mn.mn40_ext_e1_l
 ```
 
 ### Generate embeddings for all tasks
 
 ```
-python3 -m heareval.embeddings.runner hear_mn.mn40_as_ext_e1_l  --tasks-dir <path to tasks>
+python3 -m heareval.embeddings.runner hear_mn.mn40_ext_e1_l  --tasks-dir <path to tasks>
 ```
 
 ###  Run evaluation procedure
@@ -89,11 +89,11 @@ These can for instance be used as follows:
 
 ```python
 import torch
-from hear_mn import mn40_ext_clf_all_se_mels
+from hear_mn import mn40_ext_e1_l
 
 seconds = 20
 audio = torch.ones((1, 32000 * seconds))*0.5
-wrapper = mn40_ext_clf_all_se_mels.load_model().cuda()
+wrapper = mn40_ext_e1_l.load_model().cuda()
 
 embed, time_stamps = wrapper.get_timestamp_embeddings(audio)
 print(embed.shape)
