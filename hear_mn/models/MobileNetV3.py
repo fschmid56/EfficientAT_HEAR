@@ -1,15 +1,15 @@
 from functools import partial
 from typing import Any, Callable, List, Optional, Sequence, Tuple
 from torch import nn, Tensor
-import torch
 import torch.nn.functional as F
 from torchvision.ops.misc import ConvNormActivation
-import urllib.parse
 from torch.hub import load_state_dict_from_url
+import urllib.parse
 
-from .utils import cnn_out_size
-from .block_types import InvertedResidualConfig, InvertedResidual
-from .attention_pooling import MultiHeadAttentionPooling
+from models.utils import cnn_out_size
+from models.block_types import InvertedResidualConfig, InvertedResidual
+from models.attention_pooling import MultiHeadAttentionPooling
+from helpers.utils import NAME_TO_WIDTH
 
 
 # Adapted version of MobileNetV3 pytorch implementation
