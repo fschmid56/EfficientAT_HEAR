@@ -1,15 +1,13 @@
 import torch
 
-from .models.MobileNetV3 import get_model
-from .models.preprocess import AugmentMelSTFT
-from .hear_wrapper import MNHearWrapper
-from .helpers.utils import NAME_TO_WIDTH
+from hear_mn.models.MobileNetV3 import get_model
+from hear_mn.models.preprocess import AugmentMelSTFT
+from hear_mn.hear_wrapper import MNHearWrapper
+from hear_mn.helpers.utils import NAME_TO_WIDTH
 
 
-def load_model(model_file_path="", model_name="mn40_as_ext", mode="all", add_se_features=True,
-               add_block_features=False):
-    model = get_basic_model(model_name=model_name, mode=mode, add_se_features=add_se_features,
-                            add_block_features=add_block_features)
+def load_model(model_file_path="", model_name="mn10_as", mode="all"):
+    model = get_basic_model(model_name=model_name, mode=mode)
     if torch.cuda.is_available():
         model.cuda()
     return model
@@ -40,8 +38,8 @@ def get_timestamp_embeddings(audio, model):
         return model.get_timestamp_embeddings(audio)
 
 
-def get_basic_model(model_name="mn40_as_ext", **kwargs):
-    mel = AugmentMelSTFT(n_mels=128, sr=32000, win_length=800, hopsize=320, n_fft=1024)
+def get_basic_model(model_name="mn10_as_mels_256", **kwargs):
+    mel = AugmentMelSTFT(n_mels=256, sr=32000, win_length=800, hopsize=320, n_fft=1024)
     net = get_model(width_mult=NAME_TO_WIDTH(model_name), pretrained_name=model_name)
-    model = MNHearWrapper(mel=mel, net=net, scene_embedding_size=7631, timestamp_embedding_size=7631, **kwargs)
+    model = MNHearWrapper(mel=mel, net=net, **kwargs)
     return model

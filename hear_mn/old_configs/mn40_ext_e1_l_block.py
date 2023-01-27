@@ -1,9 +1,9 @@
 import torch
 
-from .models.MobileNetV3 import get_model
-from .models.preprocess import AugmentMelSTFT
-from .hear_wrapper import MNHearWrapper
-from .helpers.utils import NAME_TO_WIDTH
+from hear_mn.models.MobileNetV3 import get_model
+from hear_mn.models.preprocess import AugmentMelSTFT
+from hear_mn.hear_wrapper import MNHearWrapper
+from hear_mn.helpers.utils import NAME_TO_WIDTH
 
 
 def load_model(model_file_path="", model_name="mn40_as_ext", mode="all", add_se_features=False,

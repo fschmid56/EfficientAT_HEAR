@@ -1,15 +1,15 @@
 from functools import partial
 from typing import Any, Callable, List, Optional, Sequence, Tuple
+import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 from torchvision.ops.misc import ConvNormActivation
 from torch.hub import load_state_dict_from_url
 import urllib.parse
 
-from models.utils import cnn_out_size
-from models.block_types import InvertedResidualConfig, InvertedResidual
-from models.attention_pooling import MultiHeadAttentionPooling
-from helpers.utils import NAME_TO_WIDTH
+from .utils import cnn_out_size
+from .block_types import InvertedResidualConfig, InvertedResidual
+from .attention_pooling import MultiHeadAttentionPooling
 
 
 # Adapted version of MobileNetV3 pytorch implementation
@@ -197,7 +197,7 @@ class MobileNetV3(nn.Module):
                     nn.init.zeros_(m.bias)
 
     def _forward_impl(self, x: Tensor) -> (Tensor, Tensor):
-        additional_features = {'block_features': [], 'se_features': [], 'classifier_features': []}
+        all_features = {'block_features': [], 'se_features': [], 'classifier_features': []}
         # adapted for HEAR challenge, gather features at multiple layers
         for component_id, component in enumerate(self.features):
             if component_id in self.collect_se_ids:
@@ -209,22 +209,20 @@ class MobileNetV3(nn.Module):
                             "Not implemented for other than channel-wise Squeeze-and-Excitation at the moment."
                         scale = torch.mean(inp, se_layer.se_dim, keepdim=True)
                         se_features = se_layer.fc1(scale.squeeze(2).squeeze(2))
-                        additional_features['se_features'].append(se_features.detach())
+                        all_features['se_features'].append(se_features.detach())
                     else:
                         inp = layer(inp)
             x = component(x)
             if component_id in self.collect_component_ids:
-                additional_features['block_features'].append(x.detach())
+                all_features['block_features'].append(F.adaptive_avg_pool2d(x.detach(), (1, 1)).squeeze(2).squeeze(2))
 
-        features = F.adaptive_avg_pool2d(x, (1, 1)).squeeze()
+        all_features['classifier_features'].append(F.adaptive_avg_pool2d(x.detach(), (1, 1)).squeeze(2).squeeze(2))
         x = self.classifier[:3](x)
-        additional_features['classifier_features'].append(x.detach())
+        all_features['classifier_features'].append(x.detach())
         x = self.classifier[3:](x).squeeze()
-        if features.dim() == 1 and x.dim() == 1:
-            # squeezed batch dimension
-            features = features.unsqueeze(0)
+        if x.dim() == 1:
             x = x.unsqueeze(0)
-        return x, (features, additional_features)
+        return x, all_features
 
     def forward(self, x: Tensor) -> (Tensor, Tensor):
         return self._forward_impl(x)
@@ -307,8 +305,8 @@ def mobilenet_v3(pretrained_name: str = None, **kwargs: Any) \
 
 
 def get_model(num_classes: int = 527, pretrained_name: str = None, width_mult: float = 1.0,
-              collect_se_ids: Tuple[int, ...] = (12, 13, 14, 15),
-              collect_component_ids: Tuple[int, ...] = (0, 5, 10, 16),
+              collect_se_ids: Tuple[int, ...] = (5, 11, 13, 15),
+              collect_component_ids: Tuple[int, ...] = (5, 11, 13, 15),
               reduced_tail: bool = False, dilated: bool = False, c4_stride: int = 2, head_type: str = "mlp",
               multihead_attention_heads: int = 4, input_dim_f: int = 128,
               input_dim_t: int = 1000, se_dims: str = 'c', se_agg: str = "max", se_r: int = 4):

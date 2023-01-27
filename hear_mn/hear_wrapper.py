@@ -6,10 +6,8 @@ from contextlib import nullcontext
 
 
 class MNHearWrapper(nn.Module):
-    def __init__(self, mel: nn.Module, net: nn.Module, max_model_window=10000, timestamp_window=160, timestamp_hop=50,
-                 scene_hop=2500, scene_embedding_size=1487, timestamp_embedding_size=1487,
-                 mode="all", add_se_features=False, add_block_features=False, add_classifier_features=False,
-                 add_averaged_mels=False):
+    def __init__(self, mel: nn.Module, net: nn.Module, mode=("clf1",), max_model_window=10000, timestamp_window=160, timestamp_hop=50,
+                 scene_hop=2500, scene_embedding_size=1487, timestamp_embedding_size=1487):
         """
         @param mel: spectrogram extractor
         @param net: network module
@@ -18,8 +16,7 @@ class MNHearWrapper(nn.Module):
         @param scene_hop: the hop length for scene embeddings (milliseconds).
         @param scene_embedding_size: required by HEAR API
         @param timestamp_embedding_size: required by HEAR API
-        @param mode: "all", "embed_only", "logits"
-        @param embed_mode: "last", "second_last", "all"
+        @param mode: determines which embeddings to use
         """
         torch.nn.Module.__init__(self)
         self.mel = mel
@@ -33,10 +30,6 @@ class MNHearWrapper(nn.Module):
         self.scene_embedding_size = scene_embedding_size  # required by HEAR API
         self.timestamp_embedding_size = timestamp_embedding_size  # required by HEAR API
         self.mode = mode
-        self.add_se_features = add_se_features
-        self.add_block_features = add_block_features
-        self.add_classifier_features = add_classifier_features
-        self.add_averaged_mels = add_averaged_mels
 
     def device(self):
         return self.device_proxy.device
@@ -45,39 +38,36 @@ class MNHearWrapper(nn.Module):
         with torch.no_grad(), autocast(device_type=self.device().type) \
                 if self.device().type.startswith("cuda") else nullcontext():
             specs = self.mel(x)
+            mel_avgs = specs.detach().mean(dim=2)
             specs = specs.unsqueeze(1)
             x, features = self.net(specs)
-            features, additional_features = features
-        x, features = x.float(), features.float()
-        if self.mode == "all":
-            embed = torch.cat([x, features], dim=1)
-        elif self.mode == "embed_only":
-            embed = features
-        elif self.mode == "logits":
-            embed = x
-        elif self.mode == "none":
-            embed = torch.empty(0).to(x.device)
-        else:
-            raise RuntimeError(f"mode='{self.mode}' is not recognized not in: all, embed_only, logits")
 
-        if self.add_averaged_mels:
-            embed = torch.cat([embed, torch.mean(specs, dim=(1, 3))], dim=1)
+        embed = torch.empty(0).to(x.device)
 
-        if self.add_classifier_features:
-            embed = torch.cat([embed, additional_features['classifier_features'][0]], dim=1)
-
-        if self.add_block_features:
-            block_features = additional_features['block_features']
-            # first baseline - take channel-wise mean
-            for block_feature in block_features:
-                embed = torch.cat([embed, F.adaptive_avg_pool2d(block_feature, (1, 1)).squeeze(2).squeeze(2)], dim=1)
-
-        if self.add_se_features:
-            se_features = additional_features['se_features']
-            # first baseline - take channel-wise mean
-            for se_feature in se_features:
-                embed = torch.cat([embed, se_feature], dim=1)
-
+        if "mel_avgs" in self.mode:
+            embed = torch.cat([embed, torch.flatten(mel_avgs, start_dim=1)], dim=1)
+        if "clf1" in self.mode:
+            embed = torch.cat([embed, features['classifier_features'][0]], dim=1)
+        if "clf2" in self.mode:
+            embed = torch.cat([embed, features['classifier_features'][1]], dim=1)
+        if "logits" in self.mode:
+            embed = torch.cat([embed, x.detach()], dim=1)
+        if "se5" in self.mode:
+            embed = torch.cat([embed, features['se_features'][0]], dim=1)
+        if "se11" in self.mode:
+            embed = torch.cat([embed, features['se_features'][1]], dim=1)
+        if "se13" in self.mode:
+            embed = torch.cat([embed, features['se_features'][2]], dim=1)
+        if "se15" in self.mode:
+            embed = torch.cat([embed, features['se_features'][3]], dim=1)
+        if "b5" in self.mode:
+            embed = torch.cat([embed, features['block_features'][0]], dim=1)
+        if "b11" in self.mode:
+            embed = torch.cat([embed, features['block_features'][1]], dim=1)
+        if "b13" in self.mode:
+            embed = torch.cat([embed, features['block_features'][2]], dim=1)
+        if "b15" in self.mode:
+            embed = torch.cat([embed, features['block_features'][3]], dim=1)
         return embed
 
     def get_scene_embeddings(self, audio):
