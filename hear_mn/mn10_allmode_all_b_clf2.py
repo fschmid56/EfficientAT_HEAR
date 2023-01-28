@@ -42,5 +42,5 @@ def get_timestamp_embeddings(audio, model):
 def get_basic_model(model_name="mn10_as", **kwargs):
     mel = AugmentMelSTFT(n_mels=128, sr=32000, win_length=800, hopsize=320, n_fft=1024)
     net = get_model(width_mult=NAME_TO_WIDTH(model_name), pretrained_name=model_name)
-    model = MNHearWrapper(mel=mel, net=net, scene_embedding_size=960, timestamp_embedding_size=960, **kwargs)
+    model = MNHearWrapper(mel=mel, net=net, scene_embedding_size=2407, timestamp_embedding_size=2407, **kwargs)
     return model
