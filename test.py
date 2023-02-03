@@ -1,9 +1,9 @@
 import torch
-from hear_mn import mn10_e1_l
+from hear_mn import mn10_clf1
 
 seconds = 20
 audio = torch.ones((1, 32000 * seconds))*0.5
-wrapper = mn10_e1_l.load_model().cuda()
+wrapper = mn10_clf1.load_model().cuda()
 
 embed, time_stamps = wrapper.get_timestamp_embeddings(audio)
 print(embed.shape)

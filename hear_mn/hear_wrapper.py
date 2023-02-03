@@ -6,8 +6,9 @@ from contextlib import nullcontext
 
 
 class MNHearWrapper(nn.Module):
-    def __init__(self, mel: nn.Module, net: nn.Module, mode=("clf1",), max_model_window=10000, timestamp_window=160, timestamp_hop=50,
-                 scene_hop=2500, scene_embedding_size=1487, timestamp_embedding_size=1487):
+    def __init__(self, mel: nn.Module, net: nn.Module, mode=("clf1",), max_model_window=10000, timestamp_window=160,
+                 timestamp_hop=50, scene_hop=2500, all_blocks=False,
+                 scene_embedding_size=1487, timestamp_embedding_size=1487):
         """
         @param mel: spectrogram extractor
         @param net: network module
@@ -30,6 +31,8 @@ class MNHearWrapper(nn.Module):
         self.scene_embedding_size = scene_embedding_size  # required by HEAR API
         self.timestamp_embedding_size = timestamp_embedding_size  # required by HEAR API
         self.mode = mode
+        self.all_blocks = all_blocks
+        self.nr_of_blocks = 15  # mobilenet has always 15 blocks
 
     def device(self):
         return self.device_proxy.device
@@ -60,14 +63,22 @@ class MNHearWrapper(nn.Module):
             embed = torch.cat([embed, features['se_features'][2]], dim=1)
         if "se15" in self.mode:
             embed = torch.cat([embed, features['se_features'][3]], dim=1)
-        if "b5" in self.mode:
-            embed = torch.cat([embed, features['block_features'][0]], dim=1)
-        if "b11" in self.mode:
-            embed = torch.cat([embed, features['block_features'][1]], dim=1)
-        if "b13" in self.mode:
-            embed = torch.cat([embed, features['block_features'][2]], dim=1)
-        if "b15" in self.mode:
-            embed = torch.cat([embed, features['block_features'][3]], dim=1)
+
+        if self.all_blocks:
+            # index 0 would be in_conv
+            for i in range(1, 16):
+                if f"b{i}" in self.mode:
+                    embed = torch.cat([embed, features['block_features'][i]], dim=1)
+        else:
+            # default block ids if not set otherwise by modifying argument 'collect_component_ids' in MobileNetV3.py
+            if "b5" in self.mode:
+                embed = torch.cat([embed, features['block_features'][0]], dim=1)
+            if "b11" in self.mode:
+                embed = torch.cat([embed, features['block_features'][1]], dim=1)
+            if "b13" in self.mode:
+                embed = torch.cat([embed, features['block_features'][2]], dim=1)
+            if "b15" in self.mode:
+                embed = torch.cat([embed, features['block_features'][3]], dim=1)
         return embed
 
     def get_scene_embeddings(self, audio):

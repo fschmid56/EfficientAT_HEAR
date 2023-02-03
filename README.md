@@ -89,10 +89,10 @@ These can for instance be used as follows:
 
 ```python
 import torch
-from hear_mn import mn40_ext_e1_l
+from hear_mn.old_configs import mn40_ext_e1_l
 
 seconds = 20
-audio = torch.ones((1, 32000 * seconds))*0.5
+audio = torch.ones((1, 32000 * seconds)) * 0.5
 wrapper = mn40_ext_e1_l.load_model().cuda()
 
 embed, time_stamps = wrapper.get_timestamp_embeddings(audio)
