@@ -66,7 +66,7 @@ class MNHearWrapper(nn.Module):
 
         if self.all_blocks:
             # index 0 would be in_conv
-            for i in range(1, 16):
+            for i in range(0, 16):
                 if f"b{i}" in self.mode:
                     embed = torch.cat([embed, features['block_features'][i]], dim=1)
         else:

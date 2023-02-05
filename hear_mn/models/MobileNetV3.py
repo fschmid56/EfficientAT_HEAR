@@ -44,6 +44,7 @@ pretrained_models = {
     "mn40_as_ext(2)": urllib.parse.urljoin(model_url, "mn40_as_ext_mAP_486.pt"),
     "mn40_as_ext(3)": urllib.parse.urljoin(model_url, "mn40_as_ext_mAP_485.pt"),
     # varying hop size (time resolution)
+    "mn10_as_hop_5": urllib.parse.urljoin(model_url, "mn10_as_hop_5_mAP_475.pt"),
     "mn10_as_hop_15": urllib.parse.urljoin(model_url, "mn10_as_hop_15_mAP_463.pt"),
     "mn10_as_hop_20": urllib.parse.urljoin(model_url, "mn10_as_hop_20_mAP_456.pt"),
     "mn10_as_hop_25": urllib.parse.urljoin(model_url, "mn10_as_hop_25_mAP_447.pt"),
@@ -51,6 +52,10 @@ pretrained_models = {
     "mn10_as_mels_40": urllib.parse.urljoin(model_url, "mn10_as_mels_40_mAP_453.pt"),
     "mn10_as_mels_64": urllib.parse.urljoin(model_url, "mn10_as_mels_64_mAP_461.pt"),
     "mn10_as_mels_256": urllib.parse.urljoin(model_url, "mn10_as_mels_256_mAP_474.pt"),
+    # fully-convolutional head
+    "mn10_as_fc": urllib.parse.urljoin(model_url, "mn10_as_fc_mAP_465.pt"),
+    "mn10_as_fc_s2221": urllib.parse.urljoin(model_url, "mn10_as_fc_s2221_mAP_466.pt"),
+    "mn10_as_fc_s2211": urllib.parse.urljoin(model_url, "mn10_as_fc_s2211_mAP_466.pt"),
 }
 
 
@@ -216,10 +221,14 @@ class MobileNetV3(nn.Module):
             if component_id in self.collect_component_ids:
                 all_features['block_features'].append(F.adaptive_avg_pool2d(x.detach(), (1, 1)).squeeze(2).squeeze(2))
 
-        all_features['classifier_features'].append(F.adaptive_avg_pool2d(x.detach(), (1, 1)).squeeze(2).squeeze(2))
-        x = self.classifier[:3](x)
-        all_features['classifier_features'].append(x.detach())
-        x = self.classifier[3:](x).squeeze()
+        if self.head_type == "mlp":
+            all_features['classifier_features'].append(F.adaptive_avg_pool2d(x.detach(), (1, 1)).squeeze(2).squeeze(2))
+            x = self.classifier[:3](x)
+            all_features['classifier_features'].append(x.detach())
+            x = self.classifier[3:](x).squeeze()
+        elif self.head_type == "fully_convolutional":
+            all_features['classifier_features'].append(F.adaptive_avg_pool2d(x.detach(), (1, 1)).squeeze(2).squeeze(2))
+            x = self.classifier(x)
         if x.dim() == 1:
             x = x.unsqueeze(0)
         return x, all_features
@@ -232,7 +241,7 @@ def _mobilenet_v3_conf(
         width_mult: float = 1.0,
         reduced_tail: bool = False,
         dilated: bool = False,
-        c4_stride: int = 2,
+        strides: Tuple[int] = (2, 2, 2, 2),
         **kwargs: Any
 ):
     reduce_divider = 2 if reduced_tail else 1
@@ -242,21 +251,21 @@ def _mobilenet_v3_conf(
     adjust_channels = partial(InvertedResidualConfig.adjust_channels, width_mult=width_mult)
 
     # InvertedResidualConfig:
-    # input_channels, kernel, expanded_channels, out_channels, use_se, activation, stride, dilation, width_mult
+    # input_channels, kernel, expanded_channels, out_channels, use_se, activation, stride, dilation
     inverted_residual_setting = [
         bneck_conf(16, 3, 16, 16, False, "RE", 1, 1),
-        bneck_conf(16, 3, 64, 24, False, "RE", 2, 1),  # C1
+        bneck_conf(16, 3, 64, 24, False, "RE", strides[0], 1),  # C1
         bneck_conf(24, 3, 72, 24, False, "RE", 1, 1),
-        bneck_conf(24, 5, 72, 40, True, "RE", 2, 1),  # C2
+        bneck_conf(24, 5, 72, 40, True, "RE", strides[1], 1),  # C2
         bneck_conf(40, 5, 120, 40, True, "RE", 1, 1),
         bneck_conf(40, 5, 120, 40, True, "RE", 1, 1),
-        bneck_conf(40, 3, 240, 80, False, "HS", 2, 1),  # C3
+        bneck_conf(40, 3, 240, 80, False, "HS", strides[2], 1),  # C3
         bneck_conf(80, 3, 200, 80, False, "HS", 1, 1),
         bneck_conf(80, 3, 184, 80, False, "HS", 1, 1),
         bneck_conf(80, 3, 184, 80, False, "HS", 1, 1),
         bneck_conf(80, 3, 480, 112, True, "HS", 1, 1),
         bneck_conf(112, 3, 672, 112, True, "HS", 1, 1),
-        bneck_conf(112, 5, 672, 160 // reduce_divider, True, "HS", c4_stride, dilation),  # C4
+        bneck_conf(112, 5, 672, 160 // reduce_divider, True, "HS", strides[3], dilation),  # C4
         bneck_conf(160 // reduce_divider, 5, 960 // reduce_divider, 160 // reduce_divider, True, "HS", 1, dilation),
         bneck_conf(160 // reduce_divider, 5, 960 // reduce_divider, 160 // reduce_divider, True, "HS", 1, dilation),
     ]
@@ -272,10 +281,18 @@ def _mobilenet_v3(
     **kwargs: Any,
 ):
     model = MobileNetV3(inverted_residual_setting, last_channel, **kwargs)
+
     if pretrained_name in pretrained_models:
         model_url = pretrained_models.get(pretrained_name)
         state_dict = load_state_dict_from_url(model_url, model_dir=model_dir, map_location="cpu")
-        if kwargs['num_classes'] != state_dict['classifier.5.bias'].size(0):
+        if kwargs['head_type'] == "mlp":
+            num_classes = state_dict['classifier.5.bias'].size(0)
+        elif kwargs['head_type'] == "fully_convolutional":
+            num_classes = state_dict['classifier.1.bias'].size(0)
+        else:
+            print("Loading weights for classifier only implemented for head types 'mlp' and 'fully_convolutional'")
+            num_classes = -1
+        if kwargs['num_classes'] != num_classes:
             # if the number of logits is not matching the state dict,
             # drop the corresponding pre-trained part
             print(f"Number of classes defined: {kwargs['num_classes']}, "
@@ -307,8 +324,8 @@ def mobilenet_v3(pretrained_name: str = None, **kwargs: Any) \
 def get_model(num_classes: int = 527, pretrained_name: str = None, width_mult: float = 1.0,
               collect_se_ids: Tuple[int, ...] = (5, 11, 13, 15),
               collect_component_ids: Tuple[int, ...] = (5, 11, 13, 15),
-              reduced_tail: bool = False, dilated: bool = False, c4_stride: int = 2, head_type: str = "mlp",
-              multihead_attention_heads: int = 4, input_dim_f: int = 128,
+              reduced_tail: bool = False, dilated: bool = False, strides: Tuple[int, int, int, int] = (2, 2, 2, 2),
+              head_type: str = "mlp", multihead_attention_heads: int = 4, input_dim_f: int = 128,
               input_dim_t: int = 1000, se_dims: str = 'c', se_agg: str = "max", se_r: int = 4):
     """
         Arguments to modify the instantiation of a MobileNetv3
@@ -321,8 +338,9 @@ def get_model(num_classes: int = 527, pretrained_name: str = None, width_mult: f
             collect_component_ids (tuple): specifies blocks at which to collect output features
             reduced_tail (bool): Scales down network tail
             dilated (bool): Applies dilated convolution to network tail
-            c4_stride (int): Set to '2' in original implementation;
-                might be changed to modify the size of receptive field
+            strides (Tuple): Strides that are set to '2' in original implementation;
+                might be changed to modify the size of receptive field and the downsampling factor in
+                time and frequency dimension
             head_type (str): decides which classification head to use
             multihead_attention_heads (int): number of heads in case 'multihead_attention_heads' is used
             input_dim_f (int): number of frequency bands
@@ -335,7 +353,8 @@ def get_model(num_classes: int = 527, pretrained_name: str = None, width_mult: f
         """
 
     assert se_dims == "c", "This version is only implemented for se_dims='c'"
-    assert head_type == "mlp", "This version is only implemented for head_type='mlp'"
+    assert head_type in ["mlp", "fully_convolutional"], "This version is only implemented for head_type 'mlp' or " \
+                                                        "'fully_convolutional'"
     dim_map = {'c': 1, 'f': 2, 't': 3}
     assert len(se_dims) <= 3 and all([s in dim_map.keys() for s in se_dims]) or se_dims == 'none'
     input_dims = (input_dim_f, input_dim_t)
@@ -346,7 +365,7 @@ def get_model(num_classes: int = 527, pretrained_name: str = None, width_mult: f
     se_conf = dict(se_dims=se_dims, se_agg=se_agg, se_r=se_r)
     m = mobilenet_v3(pretrained_name=pretrained_name, num_classes=num_classes,
                      width_mult=width_mult, collect_se_ids=collect_se_ids, collect_component_ids=collect_component_ids,
-                     reduced_tail=reduced_tail, dilated=dilated, c4_stride=c4_stride,
+                     reduced_tail=reduced_tail, dilated=dilated, strides=strides,
                      head_type=head_type, multihead_attention_heads=multihead_attention_heads,
                      input_dims=input_dims, se_conf=se_conf
                      )
