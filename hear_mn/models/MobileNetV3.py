@@ -8,9 +8,9 @@ from torch.hub import load_state_dict_from_url
 import urllib.parse
 
 from .utils import cnn_out_size
+from .feature_pooling import avg_ch_pool
 from .block_types import InvertedResidualConfig, InvertedResidual
 from .attention_pooling import MultiHeadAttentionPooling
-
 
 # Adapted version of MobileNetV3 pytorch implementation
 # https://github.com/pytorch/vision/blob/main/torchvision/models/mobilenetv3.py
@@ -19,7 +19,6 @@ from .attention_pooling import MultiHeadAttentionPooling
 model_url = "https://github.com/fschmid56/EfficientAT/releases/download/v0.0.1/"
 # folder to store downloaded models to
 model_dir = "resources"
-
 
 pretrained_models = {
     # pytorch ImageNet pre-trained model
@@ -63,17 +62,17 @@ pretrained_models = {
 
 class MobileNetV3(nn.Module):
     def __init__(
-        self,
-        inverted_residual_setting: List[InvertedResidualConfig],
-        last_channel: int,
-        num_classes: int = 1000,
-        block: Optional[Callable[..., nn.Module]] = None,
-        norm_layer: Optional[Callable[..., nn.Module]] = None,
-        dropout: float = 0.2,
-        in_conv_kernel: int = 3,
-        in_conv_stride: int = 2,
-        in_channels: int = 1,
-        **kwargs: Any,
+            self,
+            inverted_residual_setting: List[InvertedResidualConfig],
+            last_channel: int,
+            num_classes: int = 1000,
+            block: Optional[Callable[..., nn.Module]] = None,
+            norm_layer: Optional[Callable[..., nn.Module]] = None,
+            dropout: float = 0.2,
+            in_conv_kernel: int = 3,
+            in_conv_stride: int = 2,
+            in_channels: int = 1,
+            **kwargs: Any,
     ) -> None:
         """
         MobileNet V3 main class
@@ -93,12 +92,13 @@ class MobileNetV3(nn.Module):
 
         self.collect_component_ids = kwargs['collect_component_ids']
         self.collect_se_ids = kwargs['collect_se_ids']
+        self.feature_pooling_fn = kwargs['feature_pooling_fn']
 
         if not inverted_residual_setting:
             raise ValueError("The inverted_residual_setting should not be empty")
         elif not (
-            isinstance(inverted_residual_setting, Sequence)
-            and all([isinstance(s, InvertedResidualConfig) for s in inverted_residual_setting])
+                isinstance(inverted_residual_setting, Sequence)
+                and all([isinstance(s, InvertedResidualConfig) for s in inverted_residual_setting])
         ):
             raise TypeError("The inverted_residual_setting should be List[InvertedResidualConfig]")
 
@@ -221,7 +221,9 @@ class MobileNetV3(nn.Module):
                         inp = layer(inp)
             x = component(x)
             if component_id in self.collect_component_ids:
-                all_features['block_features'].append(F.adaptive_avg_pool2d(x.detach(), (1, 1)).squeeze(2).squeeze(2))
+                all_features['block_features'].append(
+                    self.feature_pooling_fn(x.detach())
+                )
 
         if self.head_type == "mlp":
             all_features['classifier_features'].append(F.adaptive_avg_pool2d(x.detach(), (1, 1)).squeeze(2).squeeze(2))
@@ -277,10 +279,10 @@ def _mobilenet_v3_conf(
 
 
 def _mobilenet_v3(
-    inverted_residual_setting: List[InvertedResidualConfig],
-    last_channel: int,
-    pretrained_name: str,
-    **kwargs: Any,
+        inverted_residual_setting: List[InvertedResidualConfig],
+        last_channel: int,
+        pretrained_name: str,
+        **kwargs: Any,
 ):
     model = MobileNetV3(inverted_residual_setting, last_channel, **kwargs)
 
@@ -326,6 +328,7 @@ def mobilenet_v3(pretrained_name: str = None, **kwargs: Any) \
 def get_model(num_classes: int = 527, pretrained_name: str = None, width_mult: float = 1.0,
               collect_se_ids: Tuple[int, ...] = (5, 11, 13, 15),
               collect_component_ids: Tuple[int, ...] = (5, 11, 13, 15),
+              feature_pooling_fn=avg_ch_pool,
               reduced_tail: bool = False, dilated: bool = False, strides: Tuple[int, int, int, int] = (2, 2, 2, 2),
               head_type: str = "mlp", multihead_attention_heads: int = 4, input_dim_f: int = 128,
               input_dim_t: int = 1000, se_dims: str = 'c', se_agg: str = "max", se_r: int = 4):
@@ -338,6 +341,7 @@ def get_model(num_classes: int = 527, pretrained_name: str = None, width_mult: f
             width_mult (float): Scales width of network
             collect_se_ids (tuple): specifies blocks at which to collect squeeze and excitation features
             collect_component_ids (tuple): specifies blocks at which to collect output features
+            feature_pooling_fn (function): specifies how CNN feature maps are pooled to feature vectors
             reduced_tail (bool): Scales down network tail
             dilated (bool): Applies dilated convolution to network tail
             strides (Tuple): Strides that are set to '2' in original implementation;
@@ -367,7 +371,7 @@ def get_model(num_classes: int = 527, pretrained_name: str = None, width_mult: f
     se_conf = dict(se_dims=se_dims, se_agg=se_agg, se_r=se_r)
     m = mobilenet_v3(pretrained_name=pretrained_name, num_classes=num_classes,
                      width_mult=width_mult, collect_se_ids=collect_se_ids, collect_component_ids=collect_component_ids,
-                     reduced_tail=reduced_tail, dilated=dilated, strides=strides,
+                     feature_pooling_fn=feature_pooling_fn, reduced_tail=reduced_tail, dilated=dilated, strides=strides,
                      head_type=head_type, multihead_attention_heads=multihead_attention_heads,
                      input_dims=input_dims, se_conf=se_conf
                      )
