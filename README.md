@@ -9,6 +9,9 @@ is trained on the tasks using the generated embeddings as input.
 
 Checkout the [HEAR paper](https://arxiv.org/abs/2203.03022) for all details of the benchmark.
 
+**This repository will soon be updated with the most current version of audio embedding extraction experiments and the link
+to the paper submitted to EUSIPCO 2023.**
+
 ### Results in short
 
 ![Model Comparison](/images/s4_1.png)
