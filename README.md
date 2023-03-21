@@ -60,6 +60,41 @@ level on multiple tasks including *Beijing Opera Percussion*, *Mridingham Tonic*
 
 ![Category Analysis](/images/category_analysis.png)
 
+# Project Structure
+
+* *hear_mn* is an installable python package
+* *hear_mn/models* contains the MobileNetV3 architecture our experiments are based on; passing the argument 
+*pretrained_name* loads the model pretrained on AudioSet
+* *hear_mn/hear_wrapper.py* wraps the loaded MobileNet in a HEAR compatible format and implements *get_scene_embeddings* 
+and *get_timestamp_embeddings*
+* *hear_mn/mn\<config\>.py* implements the HEAR API functions *load_model*, *get_scene_embeddings* 
+and *get_timestamp_embeddings*; it sets the configurations and uses *hear_wrapper.py*  
+
+# Obtain Embeddings
+
+All models follow the HEAR interface and implement the following 3 methods:
+
+* load_model() 
+* get_scene_embeddings(audio)
+* get_timestamp_embeddings(audio)
+
+These can for instance be used as follows:
+
+```python
+import torch
+from hear_mn import mn01_all_b_mel_avgs
+
+seconds = 20
+sampling_rate = 32000
+audio = torch.ones((1, sampling_rate * seconds))
+wrapper = mn01_all_b_mel_avgs.load_model().cuda()
+
+embed, time_stamps = wrapper.get_timestamp_embeddings(audio)
+print(embed.shape)
+embed = wrapper.get_scene_embeddings(audio)
+print(embed.shape)
+```
+
 
 # Setup
 ### Installation
@@ -105,13 +140,13 @@ To check whether a model is correctly wrapped in the interface for the HEAR chal
 module `mn40_as_ext_e1_l`:
 
 ```
-hear-validator hear_mn.mn40_ext_e1_l
+hear-validator hear_mn.mn01_all_b_mel_avgs
 ```
 
 ### Generate embeddings for all tasks
 
 ```
-python3 -m heareval.embeddings.runner hear_mn.mn40_ext_e1_l  --tasks-dir <path to tasks>
+python3 -m heareval.embeddings.runner hear_mn.mn01_all_b_mel_avgs  --tasks-dir <path to tasks>
 ```
 
 ###  Run evaluation procedure
@@ -119,32 +154,9 @@ python3 -m heareval.embeddings.runner hear_mn.mn40_ext_e1_l  --tasks-dir <path t
 To train the shallow MLP classifier on the embeddings, run the following:
 
 ```
-python3 -m heareval.predictions.runner embeddings/hear_mn.mn40_ext_e1_l/*
+python3 -m heareval.predictions.runner embeddings/hear_mn.mn01_all_b_mel_avgs/*
 ```
 
-## Obtain Embeddings
-
-All models follow the HEAR interface given the following 3 methods:
-
-* load_model() 
-* get_scene_embeddings(audio)
-* get_timestamp_embeddings(audio)
-
-These can for instance be used as follows:
-
-```python
-import torch
-from hear_mn.old_configs import mn40_ext_e1_l
-
-seconds = 20
-audio = torch.ones((1, 32000 * seconds)) * 0.5
-wrapper = mn40_ext_e1_l.load_model().cuda()
-
-embed, time_stamps = wrapper.get_timestamp_embeddings(audio)
-print(embed.shape)
-embed = wrapper.get_scene_embeddings(audio)
-print(embed.shape)
-```
 
 ## References
 
