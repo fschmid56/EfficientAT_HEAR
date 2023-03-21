@@ -6,23 +6,31 @@ from contextlib import nullcontext
 
 
 class MNHearWrapper(nn.Module):
-    def __init__(self, mel: nn.Module, net: nn.Module, mode=("clf1",), max_model_window=10000, timestamp_window=160,
-                 timestamp_hop=50, scene_hop=2500, all_blocks=False,
-                 scene_embedding_size=1487, timestamp_embedding_size=1487):
+    """
+    Wraps a model into HEAR compatible format.
+    Important functions that are called to extract embeddings:
+        - get_scene_embeddings
+        - get_timestamp_embeddings
+    """
+    def __init__(self, mel: nn.Module, net: nn.Module, mode=("clf1",), all_blocks=False, max_model_window=10000,
+                 timestamp_window=160, timestamp_hop=50, scene_hop=2500,  scene_embedding_size=1487,
+                 timestamp_embedding_size=1487):
         """
         @param mel: spectrogram extractor
         @param net: network module
-        @param max_model_window: maximum clip length allowed by the model (milliseconds).
-        @param timestamp_hop: the hop length for timestamp embeddings (milliseconds).
-        @param scene_hop: the hop length for scene embeddings (milliseconds).
-        @param scene_embedding_size: required by HEAR API
-        @param timestamp_embedding_size: required by HEAR API
         @param mode: determines which embeddings to use
+        @param all_blocks: if true, uses all block output features as embeddings
+        @param max_model_window: maximum clip length allowed by the model (milliseconds)
+        @param timestamp_window: window size for timestamps (milliseconds)
+        @param timestamp_hop: the hop length for timestamp embeddings (milliseconds)
+        @param scene_hop: the hop length for scene embeddings (milliseconds)
+        @param scene_embedding_size: required by HEAR API, size of embedding vector
+        @param timestamp_embedding_size: required by HEAR API, size of embedding vector per timeframe
         """
         torch.nn.Module.__init__(self)
         self.mel = mel
         self.net = net
-        self.device_proxy = nn.Parameter(torch.zeros((1)))
+        self.device_proxy = nn.Parameter(torch.zeros(1))
         self.sample_rate = mel.sr  # required to be specified according to HEAR API
         self.timestamp_window = int(timestamp_window * self.sample_rate / 1000)  # in samples
         self.max_model_window = int(max_model_window * self.sample_rate / 1000)  # in samples
@@ -83,27 +91,30 @@ class MNHearWrapper(nn.Module):
 
     def get_scene_embeddings(self, audio):
         """
-        audio: n_sounds x n_samples of mono audio in the range [-1, 1]. All sounds in a batch will be padded/trimmed to the same length.
-        model: Loaded Model.
+        audio: n_sounds x n_samples of mono audio in the range [-1, 1]. All sounds in a batch will be padded/trimmed
+                to the same length.
         Returns:
         embedding: A float32 Tensor with shape (n_sounds, model.scene_embedding_size).
         """
         n_sounds, n_samples = audio.shape
-        # limit the maximal audio length to be fed at once to the model
+        # limit the maximal audio length to be fed at once to the model, long audio clips otherwise may exceed memory
         if n_samples <= self.max_model_window:
             embed = self.forward(audio.to(self.device()).contiguous())
             return embed
+        # compute embeddings as average embeddings of 10 seconds snippets
         embeddings, timestamps = self.get_timestamp_embeddings(audio, window_size=self.max_model_window,
                                                                hop=self.scene_hop)
         return embeddings.mean(axis=1)
 
     def get_timestamp_embeddings(self, audio: torch.Tensor, window_size=None, hop=None, pad=None):
         """
-        audio: n_sounds x n_samples of mono audio in the range [-1, 1]. All sounds in a batch will be padded/trimmed to the same length.
-        model: Loaded Model.
+        audio: n_sounds x n_samples of mono audio in the range [-1, 1]. All sounds in a batch will be padded/trimmed
+                to the same length.
+        window_size, hop: only set when 'get_scene_embeddings' uses 'get_timestamp_embeddings' as fallback
         Returns:
         embedding: A float32 Tensor with shape (n_sounds, n_timestamps, model.timestamp_embedding_size).
-        timestamps: A float32 Tensor with shape (`n_sounds, n_timestamps). Centered timestamps in milliseconds corresponding to each embedding in the output.
+        timestamps: A float32 Tensor with shape (`n_sounds, n_timestamps).
+                    Centered timestamps in milliseconds corresponding to each embedding in the output.
         """
         if hop is None:
             hop = self.timestamp_hop
@@ -113,12 +124,9 @@ class MNHearWrapper(nn.Module):
             pad = window_size // 2
         audio = audio.cpu()
         n_sounds, n_samples = audio.shape
-        audio = audio.unsqueeze(1)  # n_sounds,1, (n_samples+pad*2)
-        # print(audio.shape)
+        audio = audio.unsqueeze(1)  # n_sounds, 1, (n_samples+pad*2)
         padded = F.pad(audio, (pad, pad), mode='reflect')
-        # print(padded.shape)
-        padded = padded.unsqueeze(1)  # n_sounds,1, (n_samples+pad*2)
-        # print(padded.shape)
+        padded = padded.unsqueeze(1)  # n_sounds, 1, (n_samples+pad*2)
         segments = F.unfold(padded, kernel_size=(1, window_size), stride=(1, hop)).transpose(-1, -2).transpose(0, 1)
         timestamps = []
         embeddings = []

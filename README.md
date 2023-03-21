@@ -46,14 +46,14 @@ low- and mid-level features combines low-level pitch information with an abstrac
 ![Model Comparison](/images/features.png)
 
 We scale our pre-trained models by network width (number of channels) to receive GPAEE of varying complexity. The plot below
-shows that our proposed models have an excellent performance-complexity tade-off compared to well-performing challenge submissions.
+shows that our proposed models have an excellent performance-complexity trade-off compared to well-performing challenge submissions.
 For instance, our smallest model with 120k parameters extracts embeddings of quality comparable to PaSST [1,2] and 
 outperforming PANNs [3] (both around 80M parameters).
 
 ![Model Comparison](/images/model_comp.png)
 
 We also categorize the HEAR tasks into **Speech**, **Music** and **General** sounds and compare the distribution of normalized scores for each category between
-the models (see figure below). The plot below shows that overall mn30 and mn10 perform favourably against all other single models
+the models (see figure below). The plot below shows that overall mn30 and mn10 perform favorably against all other single models
 submitted to the challenge, while the tiny mn01 is still very competitive. Our models push the max challenge score to a new
 level on multiple tasks including *Beijing Opera Percussion*, *Mridingham Tonic*, *Mridingham Stroke*, *GTZAN Genre*,
 *Vocal Imitations* and *ESC-50*.

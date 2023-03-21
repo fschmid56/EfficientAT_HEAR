@@ -90,6 +90,8 @@ class MobileNetV3(nn.Module):
         """
         super(MobileNetV3, self).__init__()
 
+        # parameters to specify which features to collect from the network and how features are pooled from
+        # the full feature maps
         self.collect_component_ids = kwargs['collect_component_ids']
         self.collect_se_ids = kwargs['collect_se_ids']
         self.feature_pooling_fn = kwargs['feature_pooling_fn']
@@ -204,6 +206,7 @@ class MobileNetV3(nn.Module):
                     nn.init.zeros_(m.bias)
 
     def _forward_impl(self, x: Tensor) -> (Tensor, Tensor):
+        # dict that collects the features that are returned as general-purpose embeddings
         all_features = {'block_features': [], 'se_features': [], 'classifier_features': []}
         # adapted for HEAR challenge, gather features at multiple layers
         for component_id, component in enumerate(self.features):
@@ -211,6 +214,7 @@ class MobileNetV3(nn.Module):
                 inp = x.detach()
                 for layer in component.block:
                     if hasattr(layer, 'conc_se_layers'):
+                        # collect bottleneck SE layer representation
                         se_layer = layer.conc_se_layers[0]
                         assert len(se_layer.se_dim) == 2 and 2 in se_layer.se_dim and 3 in se_layer.se_dim, \
                             "Not implemented for other than channel-wise Squeeze-and-Excitation at the moment."
@@ -221,10 +225,12 @@ class MobileNetV3(nn.Module):
                         inp = layer(inp)
             x = component(x)
             if component_id in self.collect_component_ids:
+                # collect block output features
                 all_features['block_features'].append(
                     self.feature_pooling_fn(x.detach())
                 )
 
+        # collect classifier features
         if self.head_type == "mlp":
             all_features['classifier_features'].append(F.adaptive_avg_pool2d(x.detach(), (1, 1)).squeeze(2).squeeze(2))
             x = self.classifier[:3](x)
