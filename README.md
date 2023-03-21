@@ -45,7 +45,7 @@ low- and mid-level features combines low-level pitch information with an abstrac
 
 ![Model Comparison](/images/features.png)
 
-We scale our pre-trained models by network width (number of channels) to receive GPAEE of varying complexity. The plot below
+We scale our pre-trained models by network width (number of channels) to receive GPAEEs of varying complexity. The plot below
 shows that our proposed models have an excellent performance-complexity trade-off compared to well-performing challenge submissions.
 For instance, our smallest model with 120k parameters extracts embeddings of quality comparable to PaSST [1,2] and 
 outperforming PANNs [3] (both around 80M parameters).
@@ -70,13 +70,34 @@ and *get_timestamp_embeddings*
 * *hear_mn/mn\<config\>.py* implements the HEAR API functions *load_model*, *get_scene_embeddings* 
 and *get_timestamp_embeddings*; it sets the configurations and uses *hear_wrapper.py*  
 
+# Inference Setup
+
+The setup has been tested using python 3.8. Create and activate a conda environment:
+
+```
+conda create --name hear python=3.8
+conda activate hear
+```
+
+Install the package contained in this repository: 
+
+```
+pip install -e 'git+https://github.com/fschmid56/EfficientAT_HEAR@0.0.2#egg=hear_mn' 
+```
+
+Install the exact torch, torchvision and torchaudio versions we tested our setup with (on a CUDA 11.1 system):
+
+```
+pip install torch==1.11.0+cu102 torchvision==0.12.0+cu102 torchaudio==0.11.0+cu102 --extra-index-url https://download.pytorch.org/whl/cu102
+```
+
 # Obtain Embeddings
 
 All models follow the HEAR interface and implement the following 3 methods:
 
 * load_model() 
-* get_scene_embeddings(audio)
-* get_timestamp_embeddings(audio)
+* get_scene_embeddings(audio, model)
+* get_timestamp_embeddings(audio, model)
 
 These can for instance be used as follows:
 
@@ -89,22 +110,15 @@ sampling_rate = 32000
 audio = torch.ones((1, sampling_rate * seconds))
 wrapper = mn01_all_b_mel_avgs.load_model().cuda()
 
-embed, time_stamps = wrapper.get_timestamp_embeddings(audio)
+embed, time_stamps = mn01_all_b_mel_avgs.get_timestamp_embeddings(audio, wrapper)
 print(embed.shape)
-embed = wrapper.get_scene_embeddings(audio)
+embed = mn01_all_b_mel_avgs.get_scene_embeddings(audio, wrapper)
 print(embed.shape)
 ```
 
 
-# Setup
+# HEAR Setup
 ### Installation
-
-The setup has been tested using python 3.8. Create and activate a conda environment:
-
-```
-conda create --name hear python=3.8
-conda activate hear
-```
 
 Install HEAR validator:
 
@@ -118,17 +132,7 @@ Install HEAR evaluation kit:
 pip3 install heareval
 ```
 
-Install the package contained in this repository: 
 
-```
-pip install -e 'git+https://github.com/fschmid56/EfficientAT_HEAR@0.0.1#egg=hear_mn' 
-```
-
-Install the exact torch, torchvision and torchaudio versions we tested our setup with (on a CUDA 11.1 system):
-
-```
-pip install torch==1.11.0+cu102 torchvision==0.12.0+cu102 torchaudio==0.11.0+cu102 --extra-index-url https://download.pytorch.org/whl/cu102
-```
 
 ### Task setup
 
@@ -137,7 +141,7 @@ To download the data and setup the tasks follow the [official HEAR guideline](ht
 ### Validate setup and model
 
 To check whether a model is correctly wrapped in the interface for the HEAR challenge, run the following to test e.g. the 
-module `mn40_as_ext_e1_l`:
+module `mn01_all_b_mel_avgs`:
 
 ```
 hear-validator hear_mn.mn01_all_b_mel_avgs
