@@ -1,16 +1,29 @@
-# EfficientAT@HEAR21Benchmark
-This repository aims at evaluating the extracted audio representations of the efficient audio tagging models presented 
-in the paper [Efficient Large-Scale Audio Tagging Via Transformer-To-CNN Knowledge Distillation](https://arxiv.org/pdf/2211.04772.pdf).
-Examples, code and details can be found in the repository [EfficientAT](https://github.com/fschmid56/EfficientAT).
+# Low-complexity Audio Embedding Extractors
 
-We evaluate models on the [Holistic Evaluation of Audio Representations Benchmark](https://hearbenchmark.com/). The benchmark
-proceeds in two steps. Firstly, audio embeddings are generated for all 19 tasks. Secondly, a shallow MLP classifier
-is trained on the tasks using the generated embeddings as input.
+The aim of this repository is to provide **low-complexity general purpose audio embedding extractors (GPAEE)**.
+The corresponding paper [Low-complexity Audio Embedding Extractors](https://arxiv.org/pdf/2303.01879.pdf) is submitted to
+[Eusipco 2023](https://eusipco2023.org/). The models used as low-complexity GPAEE are pre-trained on AudioSet using Knowledge
+Distillation from Transformers. The pre-training is described in detail in the paper 
+[Efficient Large-Scale Audio Tagging Via Transformer-To-CNN Knowledge Distillation](https://arxiv.org/pdf/2211.04772.pdf) 
+accepted to [ICASSP 2023](https://2023.ieeeicassp.org/). The pre-trained models are available in the repository [EfficientAT](https://github.com/fschmid56/EfficientAT).
 
-Checkout the [HEAR paper](https://arxiv.org/abs/2203.03022) for all details of the benchmark.
+GPAEEs have to process the high-dimensional raw audio signals only once,
+while shallow downstream classifiers can solve different audio tasks based on the extracted low-dimensional embeddings. 
+This procedure can save a lot of compute when multiple tasks need to be solved in parallel based on an audio input stream.
 
-**This repository will soon be updated with the most current version of audio embedding extraction experiments and the link
-to the paper submitted to EUSIPCO 2023.**
+However, extracting high-quality audio embeddings is usually accomplished using complex transformers or large CNNs, 
+for example PaSST [1,2] and PANNs [3]. In this work, we investigate two research questions:
+
+* How can well-performing general-purpose audio representations be obtained from a CNN?
+* How is the model complexity related to the quality of extracted embeddings?
+
+We show that low-complexity CNNs are capable of extracting high-quality audio embeddings, paving the way for applying GPAEEs
+on edge devices. As shown in the Figure below, a concrete application would be a low-complexity GPAEE running on a mobile phone
+and producing audio embeddings for the continuous stream of audio received by the mobile phone. Based on the embeddings, 
+cheap MLP classifiers can solve a variety of different tasks, e.g. identifying the speaker, recognizing the music genre 
+and identifying the acoustic scene.
+
+![Model Comparison](/images/mobile.png)
 
 ### Results in short
 
@@ -167,6 +180,7 @@ PaSST (1295) and PANNs (2048).
 
 [1] Khaled Koutini, Jan Schlüter, Hamid Eghbal-zadeh, and Gerhard Widmer, “Efficient Training of Audio Transformers with Patchout,” in Interspeech, 2022.
 
-[2] Qiuqiang Kong, Yin Cao, Turab Iqbal, Yuxuan Wang, Wenwu Wang, and Mark D. Plumbley, “Panns: Large-scale pretrained audio neural networks for audio pattern recognition,” IEEE ACM Trans. Audio Speech Lang. Process., 2020.
+[2] Koutini, K., Masoudian, S., Schmid, F., Eghbal-zadeh, H., Schlüter, J., & Widmer, G. (2022). Learning General Audio Representations with Large-Scale Training of Patchout Audio Transformers. arXiv preprint arXiv:2211.13956.
 
-[3] Koutini, K., Masoudian, S., Schmid, F., Eghbal-zadeh, H., Schlüter, J., & Widmer, G. (2022). Learning General Audio Representations with Large-Scale Training of Patchout Audio Transformers. arXiv preprint arXiv:2211.13956.
+[3] Qiuqiang Kong, Yin Cao, Turab Iqbal, Yuxuan Wang, Wenwu Wang, and Mark D. Plumbley, “Panns: Large-scale pretrained audio neural networks for audio pattern recognition,” IEEE ACM Trans. Audio Speech Lang. Process., 2020.
+

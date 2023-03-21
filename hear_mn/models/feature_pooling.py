@@ -21,3 +21,8 @@ def cat_avg_max_ch_pool(features):
 def avg_time_pool(features):
     return torch.mean(features, dim=3).view(features.size(0), -1)
 
+
+def avg_max_time_pool(features):
+    return torch.mean(features, dim=3).view(features.size(0), -1) + \
+           torch.amax(features, dim=3).view(features.size(0), -1)
+
