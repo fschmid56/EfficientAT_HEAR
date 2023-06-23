@@ -1,11 +1,11 @@
 # Low-complexity Audio Embedding Extractors
 
 This repository aims to provide **low-complexity general-purpose audio embedding extractors (GPAEE)**.
-The corresponding paper [Low-complexity Audio Embedding Extractors](https://arxiv.org/pdf/2303.01879.pdf) is submitted to
+The corresponding paper [Low-complexity Audio Embedding Extractors](https://arxiv.org/pdf/2303.01879.pdf) is accepted to
 [Eusipco 2023](https://eusipco2023.org/). The models used as low-complexity GPAEE are pre-trained on AudioSet using Knowledge
 Distillation from Transformers. The pre-training is described in detail in the paper 
 [Efficient Large-Scale Audio Tagging Via Transformer-To-CNN Knowledge Distillation](https://arxiv.org/pdf/2211.04772.pdf) 
-accepted to [ICASSP 2023](https://2023.ieeeicassp.org/). The pre-trained models are available in the repository [EfficientAT](https://github.com/fschmid56/EfficientAT).
+presented in [ICASSP 2023](https://2023.ieeeicassp.org/). The pre-trained models are available in the repository [EfficientAT](https://github.com/fschmid56/EfficientAT).
 
 GPAEEs have to process the high-dimensional raw audio signals only once,
 while shallow downstream classifiers can solve different audio tasks based on the extracted low-dimensional embeddings. 
